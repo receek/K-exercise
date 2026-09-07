@@ -5,6 +5,7 @@ use rust_decimal::Decimal;
 
 use crate::record::Record;
 
+#[derive(Debug, Clone, Copy)]
 pub enum Transaction {
     Deposit {
         client: u16,

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::client::Client;
+use crate::client::{Client, ClientError};
 use crate::transaction::Transaction;
 
 pub struct TransactionEngine {
@@ -14,12 +14,12 @@ impl TransactionEngine {
         }
     }
 
-    pub fn process_transaction(&mut self, transaction: Transaction) {
+    pub fn process_transaction(&mut self, transaction: Transaction) -> Result<(), ClientError> {
         let client_id = transaction.client_id();
         let client = self
             .clients
             .entry(client_id)
             .or_insert_with(|| Client::new(client_id));
-        client.process_transaction(transaction);
+        client.process_transaction(transaction)
     }
 }

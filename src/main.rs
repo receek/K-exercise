@@ -9,6 +9,9 @@ use std::process::ExitCode;
 
 use record::Record;
 
+use crate::engine::TransactionEngine;
+use crate::transaction::Transaction;
+
 fn load_records(path: &str) -> Result<Vec<Record>, csv::Error> {
     let mut reader = csv::Reader::from_path(path)?;
     reader.deserialize().collect()
@@ -41,7 +44,15 @@ fn main() -> ExitCode {
         }
     };
 
-    let _ = records;
+    let mut engine = TransactionEngine::new();
+
+    for record in records.into_iter() {
+        let transanction = match Transaction::try_from(record) {
+            Ok(v) => v,
+            _ => continue,
+        };
+        let _ = engine.process_transaction(transanction);
+    }
 
     ExitCode::SUCCESS
 }
