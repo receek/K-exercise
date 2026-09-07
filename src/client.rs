@@ -16,4 +16,20 @@ impl Client {
             locked: false,
         }
     }
+
+    pub fn add_available(&mut self, amount: Decimal) {
+        self.available = (self.available + amount).round_dp(4);
+    }
+
+    pub fn subtract_available(&mut self, amount: Decimal) {
+        self.available = (self.available - amount).round_dp(4);
+    }
+
+    pub fn add_held(&mut self, amount: Decimal) {
+        self.held = (self.held + amount).round_dp(4);
+    }
+
+    pub fn subtract_held(&mut self, amount: Decimal) {
+        self.held = (self.held - amount).round_dp(4);
+    }
 }
