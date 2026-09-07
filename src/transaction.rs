@@ -30,6 +30,18 @@ pub enum Transaction {
     },
 }
 
+impl Transaction {
+    pub fn client_id(&self) -> u16 {
+        match self {
+            Transaction::Deposit { client, .. }
+            | Transaction::Withdraw { client, .. }
+            | Transaction::Dispute { client, .. }
+            | Transaction::Resolve { client, .. }
+            | Transaction::Chargeback { client, .. } => *client,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ParseTransactionError {
     UnknownType(String),
