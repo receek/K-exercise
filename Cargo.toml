@@ -3,7 +3,14 @@ name = "K-exercise"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "k_exercise"
+path = "src/lib.rs"
+
 [dependencies]
 csv = "1.4.0"
 rust_decimal = "1.43.0"
 serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+rust_decimal_macros = "1.40.0"

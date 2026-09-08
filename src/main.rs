@@ -1,8 +1,3 @@
-mod client;
-mod engine;
-mod record;
-mod transaction;
-
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -11,11 +6,10 @@ use std::io;
 use std::path::Path;
 use std::process::ExitCode;
 
-use record::Record;
-
-use crate::client::Client;
-use crate::engine::TransactionEngine;
-use crate::transaction::Transaction;
+use k_exercise::client::Client;
+use k_exercise::engine::TransactionEngine;
+use k_exercise::record::Record;
+use k_exercise::transaction::Transaction;
 
 fn load_records(path: &str) -> Result<csv::DeserializeRecordsIntoIter<File, Record>, csv::Error> {
     let reader = csv::ReaderBuilder::new()
