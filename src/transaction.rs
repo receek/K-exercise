@@ -64,7 +64,7 @@ fn parse_amount(raw: String) -> Result<Decimal, ParseTransactionError> {
     let amount: Decimal = raw
         .parse()
         .map_err(|_| ParseTransactionError::InvalidAmount(raw.clone()))?;
-    if !amount.is_sign_positive() || amount.scale() > 4 {
+    if amount <= Decimal::ZERO || amount.scale() > 4 {
         return Err(ParseTransactionError::InvalidAmount(raw));
     }
     Ok(amount)
