@@ -115,7 +115,7 @@ impl Client {
                     Dispute to `Deposit` transaction, move `amount` from `available` to `held`.
                     */
                     self.add_held(&amount);
-                    self.subtract_held(&amount);
+                    self.subtract_available(&amount);
 
                     self.disputes
                         .insert(tx, FundsTransaction::Deposit { amount });
@@ -147,7 +147,7 @@ impl Client {
                     /*
                     Reject dispute of `Withdrawal` transaction, subtract `amount` from `held`.
                     */
-                    self.add_held(&amount);
+                    self.subtract_held(&amount);
 
                     Ok(())
                 }
@@ -159,6 +159,7 @@ impl Client {
                     Reverse `Deposit` transaction, subtract `amount` from `held`.
                     */
                     self.subtract_held(&amount);
+                    self.locked = true;
 
                     Ok(())
                 }
@@ -168,6 +169,7 @@ impl Client {
                     */
                     self.subtract_held(&amount);
                     self.add_available(&amount);
+                    self.locked = true;
 
                     Ok(())
                 }
