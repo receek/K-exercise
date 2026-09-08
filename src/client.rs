@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use rust_decimal::Decimal;
@@ -20,6 +20,7 @@ pub enum ClientError {
     AccountLocked,
     InsufficientFunds,
     InvalidTransaction,
+    TransactionReferenceConflict,
 }
 
 impl fmt::Display for ClientError {
@@ -28,6 +29,9 @@ impl fmt::Display for ClientError {
             ClientError::AccountLocked => write!(f, "account is locked"),
             ClientError::InsufficientFunds => write!(f, "insufficient available funds"),
             ClientError::InvalidTransaction => write!(f, "invalid transaction"),
+            ClientError::TransactionReferenceConflict => {
+                write!(f, "transaction identifier conflict")
+            }
         }
     }
 }
@@ -43,6 +47,8 @@ pub struct Client {
     transactions: HashMap<u32, FundsTransaction>,
     // holds disputed `Deposit` and `Withdrawal` transactions
     disputes: HashMap<u32, FundsTransaction>,
+    // holds resolved or chargebacked txs to detect tx conflict
+    handled_disputes: HashSet<u32>,
 }
 
 impl Serialize for Client {
@@ -69,6 +75,7 @@ impl Client {
             locked: false,
             transactions: HashMap::new(),
             disputes: HashMap::new(),
+            handled_disputes: HashSet::new(),
         }
     }
 
@@ -88,21 +95,48 @@ impl Client {
         self.held = (self.held - amount).round_dp(4);
     }
 
+    fn is_tx_in_conflict(&self, tx: &u32) -> bool {
+        self.transactions.contains_key(&tx)
+            || self.disputes.contains_key(&tx)
+            || self.handled_disputes.contains(&tx)
+    }
+
     pub fn process_transaction(&mut self, transaction: Transaction) -> Result<(), ClientError> {
         match transaction {
             Transaction::Deposit { .. } | Transaction::Withdrawal { .. } if self.locked => {
+                /*
+                Client has locked account.
+                */
                 Err(ClientError::AccountLocked)
             }
+            Transaction::Deposit { tx, .. } | Transaction::Withdrawal { tx, .. }
+                if self.is_tx_in_conflict(&tx) =>
+            {
+                /*
+                Transaction identifier detected.
+                */
+                Err(ClientError::TransactionReferenceConflict)
+            }
+            Transaction::Withdrawal { amount, .. } if self.available < amount => {
+                /*
+                Client has no funds for withdrawal.
+                */
+                Err(ClientError::InsufficientFunds)
+            }
             Transaction::Deposit { tx, amount, .. } => {
+                /*
+                Add `amount` to available deposit.
+                */
                 self.add_available(&amount);
                 self.transactions
                     .insert(tx, FundsTransaction::Deposit { amount });
                 Ok(())
             }
+
             Transaction::Withdrawal { tx, amount, .. } => {
-                if self.available < amount {
-                    return Err(ClientError::InsufficientFunds);
-                }
+                /*
+                Withdraw `amount` from available deposit.
+                */
                 self.subtract_available(&amount);
                 self.transactions
                     .insert(tx, FundsTransaction::Withdrawal { amount });
@@ -140,6 +174,7 @@ impl Client {
                     */
                     self.subtract_held(&amount);
                     self.add_available(&amount);
+                    self.handled_disputes.insert(tx);
 
                     Ok(())
                 }
@@ -148,6 +183,7 @@ impl Client {
                     Reject dispute of `Withdrawal` transaction, subtract `amount` from `held`.
                     */
                     self.subtract_held(&amount);
+                    self.handled_disputes.insert(tx);
 
                     Ok(())
                 }
@@ -159,6 +195,7 @@ impl Client {
                     Reverse `Deposit` transaction, subtract `amount` from `held`.
                     */
                     self.subtract_held(&amount);
+                    self.handled_disputes.insert(tx);
                     self.locked = true;
 
                     Ok(())
@@ -169,6 +206,7 @@ impl Client {
                     */
                     self.subtract_held(&amount);
                     self.add_available(&amount);
+                    self.handled_disputes.insert(tx);
                     self.locked = true;
 
                     Ok(())
