@@ -70,20 +70,20 @@ fn parse_amount(raw: String) -> Result<Decimal, ParseTransactionError> {
     Ok(amount)
 }
 
-impl TryFrom<Record> for Transaction {
+impl TryFrom<&Record> for Transaction {
     type Error = ParseTransactionError;
 
-    fn try_from(record: Record) -> Result<Self, Self::Error> {
+    fn try_from(record: &Record) -> Result<Self, Self::Error> {
         match record.r#type.as_str() {
             "deposit" => Ok(Transaction::Deposit {
                 client: record.client,
                 tx: record.tx,
-                amount: parse_amount(record.amount)?,
+                amount: parse_amount(record.amount.clone())?,
             }),
             "withdrawal" => Ok(Transaction::Withdrawal {
                 client: record.client,
                 tx: record.tx,
-                amount: parse_amount(record.amount)?,
+                amount: parse_amount(record.amount.clone())?,
             }),
             "dispute" => Ok(Transaction::Dispute {
                 client: record.client,

@@ -6,6 +6,7 @@ mod transaction;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
+use std::fs::File;
 use std::io;
 use std::path::Path;
 use std::process::ExitCode;
@@ -16,12 +17,12 @@ use crate::client::Client;
 use crate::engine::TransactionEngine;
 use crate::transaction::Transaction;
 
-fn load_records(path: &str) -> Result<Vec<Record>, csv::Error> {
-    let mut reader = csv::ReaderBuilder::new()
+fn load_records(path: &str) -> Result<csv::DeserializeRecordsIntoIter<File, Record>, csv::Error> {
+    let reader = csv::ReaderBuilder::new()
         // remove extra whitespaces from input file
         .trim(csv::Trim::All)
         .from_path(path)?;
-    reader.deserialize().collect()
+    Ok(reader.into_deserialize())
 }
 
 fn write_clients(clients: &HashMap<u16, Client>) -> Result<(), Box<dyn Error>> {
@@ -62,15 +63,26 @@ fn main() -> ExitCode {
 
     let mut engine = TransactionEngine::new();
 
-    for record in records.into_iter() {
-        let transanction = match Transaction::try_from(record) {
-            Ok(v) => v,
-            _ => {
-                // ignore invalid records
+    for record in records {
+        let record = match record {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("error: failed to parse record: {e}");
                 continue;
             }
         };
-        let _ = engine.process_transaction(transanction);
+        let transanction = match Transaction::try_from(&record) {
+            Ok(v) => v,
+            Err(e) => {
+                // ignore invalid records
+                eprintln!("error: cannot parse transaction from record '{record}': {e}");
+                continue;
+            }
+        };
+        if let Err(e) = engine.process_transaction(transanction) {
+            // proccesing transaction failed
+            eprintln!("error: invalid transaction: {e}");
+        }
     }
 
     if let Err(e) = write_clients(&engine.clients) {
