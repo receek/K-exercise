@@ -96,9 +96,9 @@ impl Client {
     }
 
     fn is_tx_in_conflict(&self, tx: &u32) -> bool {
-        self.transactions.contains_key(&tx)
-            || self.disputes.contains_key(&tx)
-            || self.handled_disputes.contains(&tx)
+        self.transactions.contains_key(tx)
+            || self.disputes.contains_key(tx)
+            || self.handled_disputes.contains(tx)
     }
 
     pub fn process_transaction(&mut self, transaction: Transaction) -> Result<(), ClientError> {
