@@ -12,7 +12,7 @@ pub enum Transaction {
         tx: u32,
         amount: Decimal,
     },
-    Withdraw {
+    Withdrawal {
         client: u16,
         tx: u32,
         amount: Decimal,
@@ -35,7 +35,7 @@ impl Transaction {
     pub fn client_id(&self) -> u16 {
         match self {
             Transaction::Deposit { client, .. }
-            | Transaction::Withdraw { client, .. }
+            | Transaction::Withdrawal { client, .. }
             | Transaction::Dispute { client, .. }
             | Transaction::Resolve { client, .. }
             | Transaction::Chargeback { client, .. } => *client,
@@ -73,7 +73,7 @@ impl TryFrom<Record> for Transaction {
                     .parse()
                     .map_err(|_| ParseTransactionError::InvalidAmount(record.amount))?,
             }),
-            "withdraw" => Ok(Transaction::Withdraw {
+            "withdrawal" => Ok(Transaction::Withdrawal {
                 client: record.client,
                 tx: record.tx,
                 amount: record

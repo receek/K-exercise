@@ -30,9 +30,9 @@ pub struct Client {
     pub available: Decimal,
     pub held: Decimal,
     pub locked: bool,
-    // holds `Deposit` and `Withdraw` transaction history
+    // holds `Deposit` and `Withdrawal` transaction history
     pub transactions: HashMap<u32, Transaction>,
-    // holds disputed `Deposit` and `Withdraw` transactions
+    // holds disputed `Deposit` and `Withdrawal` transactions
     pub disputes: HashMap<u32, Transaction>,
 }
 
@@ -81,7 +81,7 @@ impl Client {
 
     pub fn process_transaction(&mut self, transaction: Transaction) -> Result<(), ClientError> {
         match transaction {
-            Transaction::Deposit { .. } | Transaction::Withdraw { .. } if self.locked => {
+            Transaction::Deposit { .. } | Transaction::Withdrawal { .. } if self.locked => {
                 Err(ClientError::AccountLocked)
             }
             Transaction::Deposit { tx, amount, .. } => {
@@ -89,7 +89,7 @@ impl Client {
                 self.transactions.insert(tx, transaction);
                 Ok(())
             }
-            Transaction::Withdraw { tx, amount, .. } => {
+            Transaction::Withdrawal { tx, amount, .. } => {
                 if self.available < amount {
                     return Err(ClientError::InsufficientFunds);
                 }
@@ -110,14 +110,14 @@ impl Client {
                         .insert(tx, Transaction::Deposit { amount, tx, client });
                     Ok(())
                 }
-                Some(Transaction::Withdraw { amount, .. }) => {
+                Some(Transaction::Withdrawal { amount, .. }) => {
                     /*
-                    Dispute to `Withdraw` transaction, add `amount` to `held`.
+                    Dispute to `Withdrawal` transaction, add `amount` to `held`.
                     */
                     self.add_held(amount);
 
                     self.disputes
-                        .insert(tx, Transaction::Withdraw { client, tx, amount });
+                        .insert(tx, Transaction::Withdrawal { client, tx, amount });
                     Ok(())
                 }
                 _ => Err(ClientError::InvalidTransaction),
@@ -132,9 +132,9 @@ impl Client {
 
                     Ok(())
                 }
-                Some(Transaction::Withdraw { amount, .. }) => {
+                Some(Transaction::Withdrawal { amount, .. }) => {
                     /*
-                    Reject dispute of `Withdraw` transaction, subtract `amount` from `held`.
+                    Reject dispute of `Withdrawal` transaction, subtract `amount` from `held`.
                     */
                     self.add_held(amount);
 
@@ -151,9 +151,9 @@ impl Client {
 
                     Ok(())
                 }
-                Some(Transaction::Withdraw { amount, .. }) => {
+                Some(Transaction::Withdrawal { amount, .. }) => {
                     /*
-                    Reverse of `Withdraw` transaction, move `amount` from `held` to `available`.
+                    Reverse of `Withdrawal` transaction, move `amount` from `held` to `available`.
                     */
                     self.subtract_held(amount);
                     self.add_available(amount);
