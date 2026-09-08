@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use rust_decimal::Decimal;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use crate::transaction::Transaction;
 
@@ -33,6 +34,21 @@ pub struct Client {
     pub transactions: HashMap<u32, Transaction>,
     // holds disputed `Deposit` and `Withdraw` transactions
     pub disputes: HashMap<u32, Transaction>,
+}
+
+impl Serialize for Client {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Client", 5)?;
+        state.serialize_field("client", &self.client_id)?;
+        state.serialize_field("available", &self.available)?;
+        state.serialize_field("held", &self.held)?;
+        state.serialize_field("total", &(self.available + self.held))?;
+        state.serialize_field("locked", &self.locked)?;
+        state.end()
+    }
 }
 
 impl Client {

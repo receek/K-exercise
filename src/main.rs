@@ -3,18 +3,31 @@ mod engine;
 mod record;
 mod transaction;
 
+use std::collections::HashMap;
 use std::env;
+use std::error::Error;
+use std::io;
 use std::path::Path;
 use std::process::ExitCode;
 
 use record::Record;
 
+use crate::client::Client;
 use crate::engine::TransactionEngine;
 use crate::transaction::Transaction;
 
 fn load_records(path: &str) -> Result<Vec<Record>, csv::Error> {
     let mut reader = csv::Reader::from_path(path)?;
     reader.deserialize().collect()
+}
+
+fn write_clients(clients: &HashMap<u16, Client>) -> Result<(), Box<dyn Error>> {
+    let mut writer = csv::Writer::from_writer(io::stdout());
+    for client in clients.values() {
+        writer.serialize(client)?;
+    }
+    writer.flush()?;
+    Ok(())
 }
 
 fn print_usage(program: &str) {
@@ -52,6 +65,11 @@ fn main() -> ExitCode {
             _ => continue,
         };
         let _ = engine.process_transaction(transanction);
+    }
+
+    if let Err(e) = write_clients(&engine.clients) {
+        eprintln!("error: failed to write CSV output: {e}");
+        return ExitCode::FAILURE;
     }
 
     ExitCode::SUCCESS
