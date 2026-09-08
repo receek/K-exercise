@@ -6,6 +6,15 @@ use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use crate::transaction::Transaction;
 
+// Subset of `Transaction` holding only the funds-moving variants, used to
+// remember transaction history for `Dispute`/`Resolve`/`Chargeback` lookups.
+// Internal to `Client` — never exposed outside this module.
+#[derive(Debug)]
+enum FundsTransaction {
+    Deposit { amount: Decimal },
+    Withdrawal { amount: Decimal },
+}
+
 #[derive(Debug)]
 pub enum ClientError {
     AccountLocked,
@@ -31,9 +40,9 @@ pub struct Client {
     pub held: Decimal,
     pub locked: bool,
     // holds `Deposit` and `Withdrawal` transaction history
-    pub transactions: HashMap<u32, Transaction>,
+    transactions: HashMap<u32, FundsTransaction>,
     // holds disputed `Deposit` and `Withdrawal` transactions
-    pub disputes: HashMap<u32, Transaction>,
+    disputes: HashMap<u32, FundsTransaction>,
 }
 
 impl Serialize for Client {
@@ -63,19 +72,19 @@ impl Client {
         }
     }
 
-    fn add_available(&mut self, amount: Decimal) {
+    fn add_available(&mut self, amount: &Decimal) {
         self.available = (self.available + amount).round_dp(4);
     }
 
-    fn subtract_available(&mut self, amount: Decimal) {
+    fn subtract_available(&mut self, amount: &Decimal) {
         self.available = (self.available - amount).round_dp(4);
     }
 
-    fn add_held(&mut self, amount: Decimal) {
+    fn add_held(&mut self, amount: &Decimal) {
         self.held = (self.held + amount).round_dp(4);
     }
 
-    fn subtract_held(&mut self, amount: Decimal) {
+    fn subtract_held(&mut self, amount: &Decimal) {
         self.held = (self.held - amount).round_dp(4);
     }
 
@@ -85,82 +94,84 @@ impl Client {
                 Err(ClientError::AccountLocked)
             }
             Transaction::Deposit { tx, amount, .. } => {
-                self.add_available(amount);
-                self.transactions.insert(tx, transaction);
+                self.add_available(&amount);
+                self.transactions
+                    .insert(tx, FundsTransaction::Deposit { amount });
                 Ok(())
             }
             Transaction::Withdrawal { tx, amount, .. } => {
                 if self.available < amount {
                     return Err(ClientError::InsufficientFunds);
                 }
-                self.subtract_available(amount);
-                self.transactions.insert(tx, transaction);
+                self.subtract_available(&amount);
+                self.transactions
+                    .insert(tx, FundsTransaction::Withdrawal { amount });
                 Ok(())
             }
 
-            Transaction::Dispute { tx, client } => match self.transactions.remove(&tx) {
-                Some(Transaction::Deposit { amount, .. }) => {
+            Transaction::Dispute { tx, .. } => match self.transactions.remove(&tx) {
+                Some(FundsTransaction::Deposit { amount }) => {
                     /*
                     Dispute to `Deposit` transaction, move `amount` from `available` to `held`.
                     */
-                    self.add_held(amount);
-                    self.subtract_held(amount);
+                    self.add_held(&amount);
+                    self.subtract_held(&amount);
 
                     self.disputes
-                        .insert(tx, Transaction::Deposit { amount, tx, client });
+                        .insert(tx, FundsTransaction::Deposit { amount });
                     Ok(())
                 }
-                Some(Transaction::Withdrawal { amount, .. }) => {
+                Some(FundsTransaction::Withdrawal { amount }) => {
                     /*
                     Dispute to `Withdrawal` transaction, add `amount` to `held`.
                     */
-                    self.add_held(amount);
+                    self.add_held(&amount);
 
                     self.disputes
-                        .insert(tx, Transaction::Withdrawal { client, tx, amount });
+                        .insert(tx, FundsTransaction::Withdrawal { amount });
                     Ok(())
                 }
-                _ => Err(ClientError::InvalidTransaction),
+                None => Err(ClientError::InvalidTransaction),
             },
             Transaction::Resolve { tx, .. } => match self.disputes.remove(&tx) {
-                Some(Transaction::Deposit { amount, .. }) => {
+                Some(FundsTransaction::Deposit { amount }) => {
                     /*
                     Reject dispute of `Deposit` transaction, move `amount` from `held` to `available` .
                     */
-                    self.subtract_held(amount);
-                    self.add_available(amount);
+                    self.subtract_held(&amount);
+                    self.add_available(&amount);
 
                     Ok(())
                 }
-                Some(Transaction::Withdrawal { amount, .. }) => {
+                Some(FundsTransaction::Withdrawal { amount }) => {
                     /*
                     Reject dispute of `Withdrawal` transaction, subtract `amount` from `held`.
                     */
-                    self.add_held(amount);
+                    self.add_held(&amount);
 
                     Ok(())
                 }
-                _ => Err(ClientError::InvalidTransaction),
+                None => Err(ClientError::InvalidTransaction),
             },
             Transaction::Chargeback { tx, .. } => match self.disputes.remove(&tx) {
-                Some(Transaction::Deposit { amount, .. }) => {
+                Some(FundsTransaction::Deposit { amount }) => {
                     /*
                     Reverse `Deposit` transaction, subtract `amount` from `held`.
                     */
-                    self.subtract_held(amount);
+                    self.subtract_held(&amount);
 
                     Ok(())
                 }
-                Some(Transaction::Withdrawal { amount, .. }) => {
+                Some(FundsTransaction::Withdrawal { amount }) => {
                     /*
                     Reverse of `Withdrawal` transaction, move `amount` from `held` to `available`.
                     */
-                    self.subtract_held(amount);
-                    self.add_available(amount);
+                    self.subtract_held(&amount);
+                    self.add_available(&amount);
 
                     Ok(())
                 }
-                _ => Err(ClientError::InvalidTransaction),
+                None => Err(ClientError::InvalidTransaction),
             },
         }
     }

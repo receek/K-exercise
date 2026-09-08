@@ -17,7 +17,10 @@ use crate::engine::TransactionEngine;
 use crate::transaction::Transaction;
 
 fn load_records(path: &str) -> Result<Vec<Record>, csv::Error> {
-    let mut reader = csv::Reader::from_path(path)?;
+    let mut reader = csv::ReaderBuilder::new()
+        // remove extra whitespaces from input file
+        .trim(csv::Trim::All)
+        .from_path(path)?;
     reader.deserialize().collect()
 }
 
@@ -62,7 +65,10 @@ fn main() -> ExitCode {
     for record in records.into_iter() {
         let transanction = match Transaction::try_from(record) {
             Ok(v) => v,
-            _ => continue,
+            _ => {
+                // ignore invalid records
+                continue;
+            }
         };
         let _ = engine.process_transaction(transanction);
     }

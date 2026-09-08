@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 
 use crate::record::Record;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Transaction {
     Deposit {
         client: u16,
@@ -60,6 +60,16 @@ impl fmt::Display for ParseTransactionError {
 
 impl std::error::Error for ParseTransactionError {}
 
+fn parse_amount(raw: String) -> Result<Decimal, ParseTransactionError> {
+    let amount: Decimal = raw
+        .parse()
+        .map_err(|_| ParseTransactionError::InvalidAmount(raw.clone()))?;
+    if !amount.is_sign_positive() {
+        return Err(ParseTransactionError::InvalidAmount(raw));
+    }
+    Ok(amount)
+}
+
 impl TryFrom<Record> for Transaction {
     type Error = ParseTransactionError;
 
@@ -68,18 +78,12 @@ impl TryFrom<Record> for Transaction {
             "deposit" => Ok(Transaction::Deposit {
                 client: record.client,
                 tx: record.tx,
-                amount: record
-                    .amount
-                    .parse()
-                    .map_err(|_| ParseTransactionError::InvalidAmount(record.amount))?,
+                amount: parse_amount(record.amount)?,
             }),
             "withdrawal" => Ok(Transaction::Withdrawal {
                 client: record.client,
                 tx: record.tx,
-                amount: record
-                    .amount
-                    .parse()
-                    .map_err(|_| ParseTransactionError::InvalidAmount(record.amount))?,
+                amount: parse_amount(record.amount)?,
             }),
             "dispute" => Ok(Transaction::Dispute {
                 client: record.client,
