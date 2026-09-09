@@ -12,6 +12,8 @@ This project was developed and tested with `rustc 1.97.1`.
 cargo run --release -- input.csv > accounts.csv
 ```
 
+**Be carefull, program overwrites the input file!**
+
 The program takes exactly one command-line argument: the path to the input
 CSV file. If it is missing, if extra arguments are given, or if the file does
 not exist, an explanatory message is printed to stderr and the program exits
