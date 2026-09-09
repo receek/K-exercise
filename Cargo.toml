@@ -9,8 +9,10 @@ path = "src/lib.rs"
 
 [dependencies]
 csv = "1.4.0"
+memmap2 = "0.9"
 rust_decimal = "1.43.0"
 serde = { version = "1.0.229", features = ["derive"] }
+tempfile = "3"
 
 [dev-dependencies]
 rust_decimal_macros = "1.40.0"

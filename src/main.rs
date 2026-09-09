@@ -1,23 +1,14 @@
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
-use std::fs::File;
 use std::io;
 use std::path::Path;
 use std::process::ExitCode;
 
 use k_exercise::client::Client;
 use k_exercise::engine::TransactionEngine;
-use k_exercise::record::Record;
+use k_exercise::mmap_record_parser::MmapRecordParser;
 use k_exercise::transaction::Transaction;
-
-fn load_records(path: &str) -> Result<csv::DeserializeRecordsIntoIter<File, Record>, csv::Error> {
-    let reader = csv::ReaderBuilder::new()
-        // remove extra whitespaces from input file
-        .trim(csv::Trim::All)
-        .from_path(path)?;
-    Ok(reader.into_deserialize())
-}
 
 fn write_clients(clients: &HashMap<u16, Client>) -> Result<(), Box<dyn Error>> {
     let mut writer = csv::Writer::from_writer(io::stdout());
@@ -47,40 +38,49 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let records = match load_records(path) {
-        Ok(records) => records,
+    let mut mmap_file_parser = match MmapRecordParser::new(path) {
+        Ok(parser) => parser,
         Err(e) => {
-            eprintln!("error: failed to parse CSV file '{path}': {e}");
+            eprintln!("error: cannot load file: {e}");
             return ExitCode::FAILURE;
         }
     };
 
-    let mut engine = TransactionEngine::new();
+    let mut engine = match TransactionEngine::new() {
+        Ok(engine) => engine,
+        Err(e) => {
+            eprintln!("error: IO error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
 
-    for record in records {
+    while let Some((tx_offset, record)) = mmap_file_parser.next_record() {
         let record = match record {
             Ok(r) => r,
-            Err(e) => {
-                eprintln!("error: failed to parse record: {e}");
+            Err(_e) => {
+                // eprintln!("error: failed to parse record: {e}");
                 continue;
             }
         };
+
         let transanction = match Transaction::try_from(&record) {
             Ok(v) => v,
-            Err(e) => {
+            Err(_e) => {
                 // ignore invalid records
-                eprintln!("error: cannot parse transaction from record '{record}': {e}");
+                // eprintln!("error: cannot parse transaction from record '{record}': {e}");
                 continue;
             }
         };
-        if let Err(e) = engine.process_transaction(transanction) {
+
+        if let Err(_e) = engine.process_transaction(transanction, tx_offset, &mut mmap_file_parser)
+        {
             // proccesing transaction failed
-            eprintln!("error: invalid transaction: {e}");
+            // eprintln!("error: invalid transaction: {e}");
         }
     }
 
-    if let Err(e) = write_clients(&engine.clients) {
-        eprintln!("error: failed to write CSV output: {e}");
+    if let Err(_e) = write_clients(&engine.clients) {
+        // eprintln!("error: failed to write CSV output: {e}");
         return ExitCode::FAILURE;
     }
 

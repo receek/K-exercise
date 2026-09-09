@@ -17,6 +17,21 @@ pub enum Transaction {
         tx: u32,
         amount: Decimal,
     },
+    // Marks that a `Deposit`/`Withdrawal` is currently disputed. Never
+    // present in the original input; `Client` produces these in-place (by
+    // rewriting the first byte of the `type` column to `Z`, turning
+    // "deposit"/"withdrawal" into "Zeposit"/"Zithdrawal") to remember
+    // dispute state without keeping an in-memory table.
+    DisputedDeposit {
+        client: u16,
+        tx: u32,
+        amount: Decimal,
+    },
+    DisputedWithdrawal {
+        client: u16,
+        tx: u32,
+        amount: Decimal,
+    },
     Dispute {
         client: u16,
         tx: u32,
@@ -36,6 +51,8 @@ impl Transaction {
         match self {
             Transaction::Deposit { client, .. }
             | Transaction::Withdrawal { client, .. }
+            | Transaction::DisputedDeposit { client, .. }
+            | Transaction::DisputedWithdrawal { client, .. }
             | Transaction::Dispute { client, .. }
             | Transaction::Resolve { client, .. }
             | Transaction::Chargeback { client, .. } => *client,
@@ -81,6 +98,16 @@ impl TryFrom<&Record> for Transaction {
                 amount: parse_amount(record.amount.clone())?,
             }),
             "withdrawal" => Ok(Transaction::Withdrawal {
+                client: record.client,
+                tx: record.tx,
+                amount: parse_amount(record.amount.clone())?,
+            }),
+            "Zeposit" => Ok(Transaction::DisputedDeposit {
+                client: record.client,
+                tx: record.tx,
+                amount: parse_amount(record.amount.clone())?,
+            }),
+            "Zithdrawal" => Ok(Transaction::DisputedWithdrawal {
                 client: record.client,
                 tx: record.tx,
                 amount: parse_amount(record.amount.clone())?,
